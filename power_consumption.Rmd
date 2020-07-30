@@ -1,0 +1,191 @@
+---
+title: "Assignment 4"
+author: "Lawrence May, 8192430"
+date: "02/06/2020"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd('/Users/lawrence/Google Drive/UNI/2020/stats302/Assignments/A4')
+library(MASS)
+library(vegan)
+```
+
+Question 1
+
+```{r}
+read.csv('AcornInfo.csv')->acorn
+load("~/Google Drive/UNI/2020/stats302/Assignments/A4/powerDist.RData")
+
+cmdscale(powerDist, eig=TRUE)->power.cmds 
+
+var1<-power.cmds$eig[1]/sum(power.cmds$eig)
+var2<-power.cmds$eig[2]/sum(power.cmds$eig)
+
+plot(power.cmds$points, pch=15+as.numeric(acorn$Tariff), col=as.numeric(acorn$Group), xlab=paste(round(var1*100),"% of total variability"), ylab=paste(round(var2*100),"% of total variability"), main="Classic MDS of power consumption and tariff categories")
+legend("topleft", col=c(2,3,1,2,3,1), pch=c(16,16,16,17,17,17), legend=c("Affluent Std Tariff", "Comfortable Std Tariff","Adversity Std Tariff","Affluent ToU Tariff", "Comfortable ToU Tariff","Adversity ToU Tariff"))
+```
+
+Looking at the principal coordinates plot reveals one large cluster of points around the zero mark, with a few big outliers that spread in the directions away from the center, both along the x and y axis. It does separate groups quite well, with the affluent points mostly to the left of zero, and the adversity households mostly to the right, with the comfortable ones clustered around the center, between the two others. This suggests that for most households the type of power tariff does not cause much of a difference in power consumption, both of the two tariff types tend to be clustered around zero mostly. 
+
+There are however a few outlying acorns, mostly among the adversity group and also one in the comfortable group, that, as expected, appear to vary their power consumption depending on the tariff type. Also, perhaps surprisingly, the distance from the acorn A "lavish lifestyle" (the most wealthy of all the acorns) appears to reduce their power consumption to something that is much closer to the group mean when on the ToU tariff compared to when using the standard tariff (std Tariff is the leftmost red outlier).
+
+The second group of major outliers is the P-acorn category 'struggling estates', in the adversity group. This group has quite a different power consumption to the rest of the groups, using both tariffs: Using the ToU tariff, its the right-furthest point on the scale (at 1.0), while using standard tariff it is the outlier in the top right corner. 
+
+
+
+```{r}
+#Bubble plot
+symbols(power.cmds$points, circles=acorn$TotalUse, fg=as.numeric(acorn$Group), xlab="", ylab="", main="Circle area proportional to total power use")
+legend("topleft",col=1:3 , pch=15,legend=levels(acorn$Group))
+```
+
+Looking at the bubble plot we see the larger circles clustering among the left part of the plot, the medium sized ones clustered around the center and the smallest ones to the right of the center, each clustered among similar sized ones, which is what is to be expected. The x axis therefore appears to be (negatively) correlated to power consumption. 
+It shows that overall power consumption seems to be the highest among affluent households, and lowest among households in the adversity group, with comfortable falling somewhere in between. This is exactly what we would expect, households living in adverse conditions will be watching their power bills very closely, whereas once that are comfortable or affluent don't really care that much.
+Interestingly, the P acorn category 'struggling estates', which was the outlier in the first graph, has by far the lowest total power consumption when using the ToU tariff (right-most, smallest bubble).
+
+
+
+```{r}
+#plotting eigenvalues
+plot(power.cmds$eig, main="Eigenvalue plot")
+
+"Goodness of fit:";power.cmds$GOF
+
+```
+
+Looking at the plot of eigenvalues, it appears as if the first two eigenvalues explain almost all of the variability in the data. The goodness of fit statistic confirms this, suggesting that the first two dimensions explain 97.5% of the total variability in the data. The first measure computes the importance of the chosen number of eigenvalues based on the total number of eigenvalues, while the second measure bases it only on the positive eigenvalues. 
+As we are using pairwise interpoint and Euclidean distances we do not have negative eigenvalues (the above plot confirms this). Therefore, the total sum of eigenvalues and the sum of positive eigenvalues are the same, therefore both goodness of fit measures yield the same result as well. 
+This very high goodness of fit static suggests that the chosen two dimensions are a very adequate and suitable way to represent the data.
+
+
+
+
+
+
+
+Question 2
+
+```{r}
+#Visualise as Dendrogram
+dend<-hclust(powerDist)
+#Labels correct? labels = acorn$Group,
+plot(dend, hang=-1, xlab='Acorn categories, with different tariffs',sub='',main="Complete linkage dendrogram on electricity usage of different acorns and tariffs")
+rect.hclust(dend, k = 4,border=c(4,2,6,3))
+
+tree_groups<-cutree(dend,k=4)
+
+table(tree_groups,acorn$Tariff)
+table(tree_groups,acorn$Group)
+```
+
+The dendrogram groups do not appear to be closely associated with the Tariff groups, if anything the 2nd dendrogram group has a higher proportion of standard tariff households while the 3rd has a higher proportion of ToU households. The first and the last ones are just the most affluent and the most adverse groups, with both the tariffs. In conclusion, there is no clear relation between dendrogram groupings and power tariff.
+
+There does appear to be some association between socio economic groups and tree groups however: 
+The first dendrogram group only contains affluent households (with the two highest acorns, A and B), while the second dendrogram group represents most of the other affluent and comfortable acorn groups (11/15 affluent or comfortable). The third dendrogram group represents most of the adversity acorns (8/14), with also some comfortable present however. The last one only contains adversity groups. 
+
+The dendrogram therefore appears to sort acorns based on socio economic status, from right to left going down in socio- economic status. It appears therefore as if power consumption does depend to a degree on socio economic status of the household. 
+
+
+
+
+Question 3
+
+```{r}
+read.csv('comfortable.csv')->comfortable
+adonis(comfortable[,5:52] ~comfortable[,4], method = 'euc')->permanova  #uses distances
+permanova
+```
+
+The permanova does not reject the null hypothesis that there is no significant difference in power usage between the two tariff groups for the comfortable group (p-value of 0.084, therefore not rejecting the null hypothesis that there is no difference in the distribution of the two groups.) This confirms the observations from the classical mds plots that show most of the points from both the comfortable (green) group clustered together, with no significant separation between the two tariff groups.
+
+Had the permanova given a significant result, this could potentially be due to differences in dispersion between the two groups. However, as mentioned before this does not appear to be a big problem in this case, as both the standard and terms of use groups appear to have a similar degree of dispersion looking at the first graph (with the exception of one outlier for the standard tariff group).
+
+However, a failure to reject the null hypothesis means there is not sufficient evidence of differences in mean or in dispersion between power consumption of households in the comfortable category using either the standard or the ToU tariff.
+
+
+Question 4
+```{r}
+#Compute within group sum of squares (WSS) plot
+WSS<-rep(NA,10)
+for(i in 2:11){
+  WSS[i-1]<-kmeans(comfortable[,5:52], centers=i, nstart=10)$tot.withinss}
+
+#Compute CH index
+BSS<-rep(NA,10)
+for(i in 2:11){
+  BSS[i-1]<-kmeans(comfortable[,5:52], centers=i,nstart=10)$betweenss}
+NminusK<-nrow(comfortable[,5:52])-c(2:11)
+Kminus1<-c(1:10)
+CH<-BSS*NminusK/(WSS*(Kminus1))
+
+
+#Plot WSS and CH index
+par(mfrow=c(1,2))
+plot(2:11, WSS, xlab="Number of Clusters", main="Within group sum of squares")
+plot(2:11, CH, xlab="number of clusters", main="Calinski-Harabasz index")
+
+```
+
+The within group sum of squares graph above appears to have an elbow at 6-7 clusters, suggesting a cutoff after the 6th cluster.
+
+Calinski-Harabasz index produces its maximum value at only 2 clusters, therefore this method would suggest using only two clusters.
+
+```{r}
+
+kmod_2<-kmeans(comfortable[,5:52], centers=2,nstart=10)
+kmod_6<-kmeans(comfortable[,5:52], centers=6,nstart=10)
+
+#Cluster memberships and detailed acorn categories
+table(kmod_6$cluster, comfortable$ACORN)
+#Cluster memberships and different tariffs
+table(kmod_6$cluster, comfortable$TARIFF)
+```
+
+Looking at the distribution of clusters it reveals they are of uneven size. Clusters 3 and 5 both only contain about 10 and 2 observations, compared to about 100-200 in the other clusters, which suggests taking a lesser amount of clusters, as suggested by the CH-index, might be more appropriate.
+
+There also doesn't seem to be a strong association between the households acorn and its cluster. We can see that cluster 5 only contains acorn J category households, but it only contains two households. The remaining households are very evenly split between the 6 clusters, with no apparent association between cluster and acorn category.
+
+Same goes for tariff categories, the clusters have households from both tariff categories quite evenly split between them. Exception again is cluster 5 where both households are on the standard tariff, again not that meaningful however as it contains only two households.
+
+Looking at only two clusters as suggested by CH-index will likely be more meaningful:
+
+```{r}
+#Cluster memberships and detailed acorn categories
+t_cat<-table(kmod_2$cluster, comfortable$ACORN)
+t_cat
+#Cluster memberships and different tariffs
+table(kmod_2$cluster, comfortable$TARIFF)
+
+
+"Proportion of Acorn-F in 1st cluster:";t_cat[1,1]/sum(t_cat[1,])
+"Proportion of Acorn-F in 2nd cluster:";t_cat[2,1]/sum(t_cat[2,])
+
+"Proportion of Acorn-G in 1st cluster:";t_cat[1,2]/sum(t_cat[1,])
+"Proportion of Acorn-G in 2nd cluster:";t_cat[2,2]/sum(t_cat[2,])
+
+"Proportion of Acorn-H in 1st cluster:";t_cat[1,3]/sum(t_cat[1,])
+"Proportion of Acorn-H in 2nd cluster:";t_cat[2,3]/sum(t_cat[2,])
+
+"Proportion of Acorn-I in 1st cluster:";t_cat[1,4]/sum(t_cat[1,])
+"Proportion of Acorn-I in 2nd cluster:";t_cat[2,4]/sum(t_cat[2,])
+
+"Proportion of Acorn-J in 1st cluster:";t_cat[1,5]/sum(t_cat[1,])
+"Proportion of Acorn-J in 2nd cluster:";t_cat[2,5]/sum(t_cat[2,])
+```
+
+Using only two clusters, we get much more evenly distributed observations accross the two clusters, with still slightly more in the first than in the second cluster.
+
+There still does not appear to be much of an association between the two clusters and either the acorn categories or the tariff groups. They all appear to be roughly evenly distributed between the two clusters, not suggesting any sort of relationship between them or any specific grouping of power tariff or acorn category that the cluster captures.
+
+Looking at the proportion of acorn categories represented in the two clusters, the 1st cluster appears to contain a larger share of the F-acorn category, while the second one has a larger share of the H-acorn category.
+
+This isn't too surprising as households within the comfortable category will likely not have too much of a varying power consumption. 
+
