@@ -1,0 +1,128 @@
+---
+title: "Stats302_A1"
+date: "18/03/2020"
+author: "Lawrence May, 8192430"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("/Users/lawrence/Google Drive/UNI/2020/Stats302")
+```
+
+Question 1
+
+```{r}
+read.csv('ozone3.csv')->ozone
+boxplot(ozone, xlab= 'Date', ylab='Ozone level', main='Ozone levels in 1987')
+```
+
+There appear to be a few spikes in ozone levels around the end of June 1987, there are two days in particular where very high ozone levels are recorded in some areas (more than 150), while in other areas ozone levels are completely normal. These could be classified as outliers, there is a few more such points in July, and also a few areas in June that have almost zero ozone.
+
+There does not appear to be a significant overall trend, however ozone levels appear to decrease slightly around mid-August.
+
+
+Question 2
+
+```{r}
+#colMeans(ozone)
+nr <- nrow(ozone)
+nc <- ncol(ozone)
+median <- data.frame(matrix(nrow = 1, ncol = nc))
+mean <- data.frame(matrix(nrow = 1, ncol = nc))
+ for (i in 1:nc) {
+  median[,i] <- median(ozone[,i])
+  mean[,i] <- mean(ozone[,i])
+ }
+mean.num<-as.numeric(mean)
+median.num<-as.numeric(median)
+dif<-mean.num-median.num
+hist(dif)
+#hist(mean.num)
+#hist(median.num)
+
+```
+
+Mean and Median ozone levels are relatively similarly distributed, meaning there are not too many significant outliers, and there is no significant skew in the data. The mean and median ozone levels are roughly normally distributed.
+
+
+Question 3
+
+```{r}
+ind <- seq(as.Date("1987-06-03"), as.Date("1987-08-31"), by = "day")
+#myts <- ts(mean.num, start = c(1987, as.numeric(format(inds[1], "%j"))),
+#           frequency = 365)
+#plot(myts)
+
+library("zoo")
+ts_z <- zoo(mean.num,ind)
+
+plot(ts_z, xlab= 'Date', ylab='Ozone level', main='Mean ozone levels in 1987')
+
+```
+
+Question 4
+
+We should not scale the data as every measurement has been taken on the same scale. If a specific day has more variance than others it rightly gets more importance in the PCA score as it is comparable to the other days. We should therefore use the Covariance matrix to compute the principal components.
+
+Question 5
+
+```{r}
+library(ggplot2)
+library(reshape2)
+ozone.cov <- cov(ozone)
+image(ozone.cov)
+Pcovmelt<-melt(ozone.cov)
+names(Pcovmelt)<-c("Measurement1", "Measurement2", "Covariance")
+ggplot(data=Pcovmelt, aes(x=Measurement1, y=Measurement2, fill=Covariance)) + geom_tile()
+```
+
+There appear to be days that are quite strongly correlated with the days before and after, but also ones that are quite negativly correlated with the neighbouring days. This reflects the quite heavy day to day variation of the ozone levels which can be seen in the time series plot.
+
+
+Question 6
+
+```{r}
+prcomp(ozone)->oz.pc
+screeplot(oz.pc, main='Screeplot of Ozone levels', xlab='component')
+var<-(oz.pc$sd^2)[1:5]/sum(oz.pc$sd^2)
+var
+sum(var[1:3])
+```
+
+Based on the 'elbow' rule, we should use between 2-4 Principal Components. I would argue that using the first 3 would be a good choice, this would account for more than 60% (61.53%) of the variability of the data.
+
+Question 7
+```{r}
+plot(oz.pc$x[,1:2],main="Scores plot")
+```
+
+There appear to be two groups of data, separated by PC1, one in the range of -100 to 40, the other one in the range of 70-160. There seems to be 2-3 outliers (in particular, obs 28 and 25) at the lower end of PC2 on the right side.
+
+Question 8
+
+```{r}
+oz25 <- as.numeric(ozone[25,])
+ts25 <- zoo(oz25,ind)
+oz28 <- as.numeric(ozone[28,])
+ts28 <- zoo(oz28,ind)
+oz_L <- as.numeric(ozone[49,])
+oz_R <- as.numeric(ozone[18,])
+ts_L <- zoo(oz_L,ind)
+ts_R <- zoo(oz_R,ind)
+
+plot(ts28, xlab= 'Date', ylab='Ozone level', main="first outlier")
+plot(ts25, xlab= 'Date', ylab='Ozone level',main="second outlier")
+plot(ts_z, xlab= 'Date', ylab='Ozone level', main="mean")
+
+```
+
+By comparing the two outliers with the mean there do not seem to be very significant differences in their ozone levels. The two outliers seem to be centered a little bit lower than the mean, while they also don't seem to have the downwards trend in ozone level around mid-late August that seems to be present in most of the other measurement areas.
+
+
+```{r}
+plot(ts_L, xlab= 'Date', ylab='Ozone level', main="Representative from left group")
+plot(ts_R, xlab= 'Date', ylab='Ozone level', main="Representative from right group")
+```
+
+Looking at the two representatives from each group there does not appear to be a significant difference between the two. The right group has about a week of very low ozone levels in the beginning of July that is followed by a sudden spike,  its a little bit more evenly distributed in the left group.

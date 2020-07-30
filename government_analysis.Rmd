@@ -1,0 +1,197 @@
+---
+title: "Assignment2"
+author: "Lawrence May, 8192430"
+date: "09/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+Question 1
+
+```{r}
+#Determine how countries of different regimes differ on a range of measures
+
+setwd("/Users/lawrence/Google Drive/UNI/current/stats302/Assignments/A2")
+govts<-read.csv('governments.csv')
+library(MASS)
+
+#removing non-numerical variables and Standard errors
+num.govts<-subset(govts, select = -c(wdicode,pacl_country,un_region_name))
+num.govts['regime']<-num.govts['regime']+1
+
+#using leave 1 out cross validation to determine how many variates to use
+preds<-matrix(NA,ncol=5,nrow=nrow(num.govts))
+for(i in 1:nrow(num.govts)){
+  mod<-lda(regime~.,data=num.govts[-i,]) #leave one row out
+  for(j in 1:5){
+    mod.predict<-predict(mod, newdata=num.govts[i,],dimen=j)
+    preds[i,j]<-mod.predict$class
+  }
+}
+"1 can. variate:";sum(preds[,1]==num.govts$regime)
+"2 can. variates:";sum(preds[,2]==num.govts$regime)
+"3 can. variates:";sum(preds[,3]==num.govts$regime)
+"4 can. variates:";sum(preds[,4]==num.govts$regime)
+"5 can. variates:";sum(preds[,5]==num.govts$regime)
+
+preds
+
+```
+
+Using 2-4 canonical variates seems to be most useful in separating government types as it predicts the highest number of regime types correctly.
+
+```{r}
+govts.lda<-lda(regime~.,data=num.govts)
+"Variance in the original data explained by the variates - might be due to overfitting:";barplot(govts.lda$svd)
+var<-govts.lda$svd/sum(govts.lda$svd)
+"Variance in the original data explained by the variates - might be due to overfitting:";var
+
+accuracyLDA2<-round(sum(preds[,2]==num.govts$regime)/length(num.govts$regime),4)
+"Cross-validated %Accuracy using two canonical variates:";accuracyLDA2*100
+
+accuracyLDA4<-round(sum(preds[,4]==num.govts$regime)/length(num.govts$regime),4)
+"Cross-validated %Accuracy using four canonical variates:";accuracyLDA4*100
+
+
+```
+
+Looking at the percentage of explained variation, by using the equivalent of the elbow method similar to a screeplot would also suggest either 2 or 4 variates. 
+
+As using 4 over 2 variates only ads a very small amount of information (98 vs 95 correct predictions) and variate 3 is heavily influenced by two outliers I decided to only use 2 variates, as this makes interpretation a little easier as well and simplifies the model, true to the Occam's Razor principle.
+
+Looking at the cross-validated performance, using two variates correctly predicts 51.08% of the variation in the data, versus 52.69% using four variates, which is not a significant difference. 
+
+
+```{r}
+govts.predict<-predict(govts.lda,dimen=4)
+pairs(govts.predict$x, main = "Democracy and Dictatorship - 6 different regime types",
+pch=21, bg = c("red", "green3", "blue", "gray1","gold","deeppink")[num.govts$regime])
+par(xpd=TRUE)
+legend(0.9, 0.4, as.vector(sort(unique(num.govts$regime))),
+       fill=c("red", "green3", "blue", "gray1","gold","deeppink"))
+
+govts.predict2<-predict(govts.lda,dimen=2)
+plot(govts.predict2$x, main = "Democracy and Dictatorship - 6 different regime types",
+pch=21, bg = c("red", "green3", "blue", "gray1","gold","deeppink")[num.govts$regime])
+par(xpd=TRUE)
+legend(4.5, 0, as.vector(sort(unique(num.govts$regime))),
+       fill=c("red", "green3", "blue", "gray1","gold","deeppink"))
+
+
+govts.predict
+```
+
+At first glance, the groups are not as well separated as they were in the possum example. However, the first variate (LD1) appears to be separating democratic and liberal (less than zero) and non-democratic (greater than 0) forms of government. Western, democratic countries such as the US, Spain and Liechtenstein are all clustered together at the negative end, while dictatorships sich as Libya, Saudi Arabia or Myanmar are clustered to the right scoring quite highly on LD1.
+
+Therefore, LD1 separates government types 0,1,2 from types 3,4,5 quite well, though not perfectly. It does not separate the different types of democracy and dictatorships very well, these are hard to distinguish.
+
+The second variate (LD2) appears to be separating political stability and safety in countries. This means it does quite a good job at separating royal from military and civil dictatorships, as the royal ones tend to be richer and more politically stable. It does fairly well at separating relatively stable dictatorships such as Brunei and Saudi Arabia (LD2 score around 3) from more unstable ones such as Somalia or Angola (LD2 score around -2).
+
+Among the democracies, it separates parlimentary democracies such as Ireland (high scoring) quite well from presidential democracies such as Argentinia or Boliva (low scoring), which tend to be less politically stable and safe a well. It fails to separate semi-presidential democracies, which as expected fall somewhere in between.
+
+
+
+
+
+
+Question 2
+
+
+Correlation of LD1 and LD2 with original variables:
+```{r}
+no_regime.govts=num.govts[-3]
+title<-("Correlation of LD1 and LD2 discriminant functions with original variables")
+m<-matrix(NA,15,2)
+for(i in 1:2){
+  for(j in 1:15){
+    m[j,i]<-round(cor(govts.predict$x[,i],no_regime.govts[,j]),2)
+  }
+}
+m.df<-as.data.frame(m,row.names = colnames(no_regime.govts))
+names(m.df)<-c("LD1","LD2")
+title;m.df
+```
+
+LD1 is most strongly correlated with the Voice and Accountability estimate (-0.92) and tenure08 (0.64). GE,RQ,RL and CC Estimates are also somewhat important with negative correlations between -0.5 and -0.6. This makes sense as LD1 seems to discriminate between democratic and non-democratic government forms. A higher LD1 score appears to be predicting more autocratic governments (Gaddafi's Libya scoring highest with 4). Long tenure are very common among dictatorships, therefore a positive correlation with tenure08 seems logical. Likewise, Voice and Accountability as well as the other indicators are usually indicators of inclusive, democratic governmnt forms, therefore a strong negative correlation appears sensible. 
+
+LD2 is strongest correlated with RLEstimate(0.66), while CC, RL, RQ, GE and PS estimates and agereg are also somewhat important (between .46 and 0.59). This makes sense as it appears to be separating economically successful (richer) countries from poorer countries, and economic success is closely tied to rule of law, regulatory quality etc.
+
+The bornyear variable doesn't help discriminate too much between government types, with only a weak 0.27 correlation with LD1 and almost none with LD2. It is more strongly correlated with LD3, however this seems to be very heavily influenced by 1 outlier (Oman "born" in 1664). Other than that, it is not very interpretable, the same goes with LD4. Therefore not including them seems sensible. Some of the standard error variables are also not particularly helpful in discriminating governments, PS, RL and CC standard errors all don't seem to be particularly useful in separating regime types.
+
+
+
+
+
+Question 3
+
+```{r}
+newgovts<-read.csv('newdata2020-update.csv')
+new.predict<-predict(govts.lda,newdata=newgovts,dimen=2)
+df<-data.frame(round(new.predict$posterior,2),row.names = c("Obs 1","Obs 2","Obs 3"))
+title<-("Posterior probabilities of 3 new observations")
+names(df)<-c("Parl. dem","Semi-pres. dem","Pres dem","Civ dict","Mil dict","Royal dict")
+title;df
+```
+As the data are from 1996, applying a model trained on 2008 data might not be as accurate for these data points. This is because the world in 1996 was a very different one to 2008's one. Many technological, cultural and economical factors have changed. Therefore predictions that might be true for determining government types in 2008 might lead to very different predictions using 1996 data.
+
+
+
+Question 4
+```{r}
+reg_names<-cbind("Parlimentary democracy","Semi-presidential democracy","Presidential democracy","Civilian dictatorship","Military dictatorship","Royal dictatorship")
+ld_names<-cbind("LD1","LD2")
+par(mfrow=c(1,2))
+for(i in 1:6){
+  for(j in 1:2){
+    qqnorm(govts.predict$x[num.govts$regime==i,j],main=paste(reg_names[i]," ",ld_names[j]))
+  }
+}
+```
+
+Most of the LDA scores within each regime type appear to be somewhat normally distributed. However, in a few cases, such as presidential democracy LD1 and both LDA scores in royal dictatorship the normality assumption is somewhat challenged. In the case of the royal dictatorship, this might also be due to the fact that there are only 12 observations however. As the dataset is relatively small with only 186 observations this doesn't create any too significant issues in the interpreterbility of the previous results as the observations are mostly normally distributed. 
+
+These results make me interpret my above results with a bit of caution as the normality assumption appears to be somewhat challenged.
+
+
+Question 5
+```{r}
+no_royal<-subset(num.govts, regime!=6)
+govts.qda<-qda(regime~.,data=no_royal, CV = TRUE)
+
+#Check no. of correct predictions to check accuracy
+match = 0
+for (i in 1:length(govts.qda$class)) {
+  if (govts.qda$class[i] == no_royal$regime[i]) {
+  match = match + 1}
+}
+
+accuracy_QDA<-round(match/length(govts.qda$class),4)
+"%Accuracy QDA:";accuracy_QDA*100
+
+accuracyLDA2<-round(sum(preds[,2]==num.govts$regime)/length(num.govts$regime),4)
+"%Accuracy LDA:";accuracyLDA2*100
+
+```
+
+QDA is designed to relax the assumption of equal within-group covariance that applies to LDA. It does this by estimating covariance separately for each group to accomodate covariance differences between groups. Therefore, it has to estimate a covariance matrix separately for every regime type. This is done by matrix inversion, which requires at least as many observations as variables. The royal dictatorship regime type therefore has to be excluded because it only has 12 observations, which are less than the 15 variables that would be required to compute the covariance matrix.
+
+```{r}
+par(mfrow=c(2,2))
+for(i in 1:15){
+  boxplot(no_regime.govts[,i] ~ num.govts$regime, main=names(no_regime.govts)[i])
+}
+```
+
+Looking at the above boxplots, there appears to be some evidence that within-group covariance may not be equal, at least for some variables (in particular the "non-estimates" bornyear, tenure08 and agereg), therefore using QDA instead might be appropriate.
+
+In terms of performance, QDA correctly predicts 51.15% of the regime types using cross-validation, slightly above the 51.08% using LDA with 2 canonical variates, but not a dramatic difference. It only discriminates between 5 regime types now, versus 6 when using LDA so the odds of correct classification are also slightly higher which has to be kept in mind. 
+
+Given the indication that some of the assumptions for LDA (normality, equal within group variance) are not met, QDA might be a more appropriate method to separate the groups.
+
+

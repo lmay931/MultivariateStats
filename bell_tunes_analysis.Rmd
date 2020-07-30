@@ -1,0 +1,165 @@
+---
+title: "Assignment 3"
+author: "Lawrence May, 8192430"
+date: "14/05/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd('/Users/lawrence/Google Drive/UNI/2020/stats302/Assignments/A3')
+library(vegan)
+```
+
+Question 1
+```{r}
+read.csv('bellinfo.csv')->bells
+year_dim<-bells[,c(12:16)]
+freqs<-bells[,c(2:11)]
+#stand.Y = TRUE, stand.X = TRUE,
+#Canonical correlation computation
+CCorA(Y=freqs,X=year_dim, stand.Y = TRUE, stand.X = TRUE,permutations = 5000)->bells.cor
+bells.cor
+#Significance
+bells.cor$p.Pillai
+bells.cor$p.perm
+```
+There is a significant, strong relationship between bell dimensions and manufacturing year and the tone frequencies the bells play at. This can be seen from the very low p-values for both the Pillai's trace test (0.00014) and permutation test with 5000 permutations ( 0.0002). 
+
+```{r}
+#Redundancy Analysis
+bells.cor$RDA.Rsquares
+bells.cor$RDA.adj.Rsq
+```
+
+As expected with such a high statistical significance, the proportion of variation in Y explained by X is about 67% on an adjusted basis, while the proportion of variation in X eplained by Y is about 60%. Both of these indicate a highly significant relationship between variables X and Y.
+
+```{r}
+"Canonical Correlations";bells.cor$CanCorr
+```
+The first two canonical correlations are also quite high (0.99 and 0.78).
+
+```{r fig.height=12, fig.width=12}
+biplot(bells.cor)
+```
+
+```{r}
+"Can. Var. derived from Y";bells.cor$corr.Y.Cy[,1:2]
+"Can. Var. derived from X";bells.cor$corr.Y.Cx[,1:2]
+"Can. Var. derived from Y";bells.cor$corr.X.Cy[,1:2]
+"Can. Var. derived from X";bells.cor$corr.X.Cx[,1:2]
+```
+
+Looking at the correlations of the first two canonical pairs with the original variables, a carillon bell's thickness, height and diameter are very strongly (0.90) related with its tone frequencies. Weight and age also play important roles with correlations 0.68 and 0.64, respectively. The relationship between these variables is the same accross hum, prime, tierce, quint and nominal frequencies, with a correlation of about 0.95.
+
+All 5 frequencies appear to be almost perfectly positively correlated with Canonical Axis 1 (all around 96% correlation ), while the variables related to the bells dimensions(around -91% correlation, Weight -68%), appear to be highly negatively correlated to Canonical Axis 1.
+
+The deviations of the frequencies tend to be positively correlated with Canonical Axis 2, with values around 50% to 70%. There is one exception, TierceDev, which is instead negatively correlated with CanAxis 1 (-63%) and only weakly correlated with CanAxis 2.
+
+The year variable has quite a highly correlated with both Axis 1 and 2, around 50% with CanAxis1 and -70% with CanAxis2.
+
+There are two outliers, observation 38 and 39, which are the two newer bells from 1954 instead of 1925 like the rest of them. This might be due to different manufacturing methods used which slightly changed the relationship between dimensions and frequencies. These two bells are considerably lighter than the other, older ones as well.
+
+
+
+Question 2
+```{r}
+library(MASS)
+#Create new datafram with only the bells made in 1925
+bells25<-bells[which(bells$Year==1925),]
+#Exclude meaningless first variable
+bells25=bells25[,-1]
+#Include only deviations from frequencies
+bells25.freq<-bells25[,c(2,4,6,8,10)]
+
+
+group<-c(rep("Heavy",10),rep("Medium", 10),rep("Light",11))
+
+manova(as.matrix(bells25.freq)~group) -> man
+
+W<-summary(man)$SS$Residual
+Sigma<-W/(nrow(bells25.freq)-3)
+
+group<-as.factor(group)
+ntype <- length(levels(group))
+pred.center<-bells25.freq
+
+for(i in 1:ntype){
+  center = apply(bells25.freq[as.numeric(group) == i,], 2, mean)
+  center.mat = matrix(rep(center, sum(as.numeric(group) == i)),ncol = length(center), byrow = T)
+  pred.center[as.numeric(group) == i,] <- bells25.freq[as.numeric(group) == i,] - center.mat
+}
+
+abs.pred.center<-abs(pred.center)
+manova(as.matrix(abs.pred.center)~group)->levenes
+summary(levenes)
+
+for (i in 1:ncol(bells25.freq)){
+  boxplot(abs.pred.center[,i]~group, main=names(pred.center)[i])
+}
+```
+
+The above boxplots show that the deviations from the desired frequencies appear to vary between our heavy, medium and light groups of bells. This implies that covariances might differ between groups.
+
+There appear to be some differences in the within group covariances, the multivariate levenes test yields a p-value of 0.027, which is (weakly) significant. Looking at the boxplots confirms that, with the most striking differences in variances (frequency deviations) means in the QuintDev and to a lesser extent, the TierceDev frequencies. The equal within group covariance assumption is therefore challenged and possibly violated.
+
+
+Question 3
+```{r}
+distances<-mahalanobis(pred.center,0,Sigma)
+hist(distances)
+
+qqplot(qchisq(ppoints(nrow(pred.center)),df=ncol(pred.center)),distances,main="Mahalanobis distances vs Chi squared distribution",xlab='Chisq Quantiles')
+abline(0,1)
+
+ks.test(distances,"pchisq",df=ncol(pred.center))
+```
+
+Looking at the histogram and qqplot, the data does appear "on the edge' of being multivariate normal. The histogram shows a right-skew, which is to be expected. The qqplot shows the data roughly following the chi squared distribution, though far from perfectly. There are significant deviations, both at the beginning and the upper parts of it. This would suggest the multivariate normality assumption might not be met.
+
+The Kolmogorov-Smirnov test confirms this, with a significant p-value of 0.04211 it narrowly rejects the null hypothesis that the data follows the chi squared distribution, (weakly) suggesting that it is not multivariate normal with common covariance.
+
+
+Question 4
+
+```{r}
+summary(man,test='Pillai')
+summary(man,test='Wilks')
+summary(man,test='Hotelling')
+summary(man,test='Roy')
+```
+The Manova rejects the null hypothesis that there is no difference in means between the groups, though not very strongly with a p-value of around 0.01 using all four tests. This suggests that there is in fact a difference between the means of the deviations of the desired frequencies for the three groups of bells.
+
+However, as both the multivariate normality and equal within group covariances assumptions are likely violated for this dataset, the results of this manova are possibly not very accurate. Due to the not very significant p-value there is reason for concern that the null hypothesis was rejected because assumptions weren't met, rather than because there actually is a difference between group means. 
+
+The different within group covariances also pose a problem with this interpretation: As the manova is quite sensitive to the equal within group covariance assumption, the manova might be taking differences in group covariances as significant, rather than differences in group means which we want to test for.
+
+Therefore, a permutation test would likely be useful to do to be able to relax these assumptions and check if the null hypothesis is still rejected:
+
+```{r}
+permstats<-rep(NA,1000)
+for(i in 1:1000){
+  perm<-sample(group)
+  manova(as.matrix(bells25.freq)~perm)->mod
+  summary(mod)$stats[1,2]->permstats[i]
+}
+manova(as.matrix(bells25.freq)~group)->mod
+summary(mod)
+"Largest Pillai's trace value out of permutations:";max(permstats)
+hist(permstats)
+"Proportion of permutations that resulted in a Pillai's trace value larger than the original data:";sum(permstats>0.66167)/1000
+
+abline(v=0.66167, col="darkred")
+```
+
+The non-permuted manova gives a Pillai's trace value of 0.66167, which appears to be larger than the majority of the permutation based Pillai's scores when the frequency values get randomly assigned to the groups. However, this is not by a large margin, and there is some (around 1-2%) cases where the Pillai's trace value of the permuted data is actually even larger (with the maximum being around 0.80). 
+
+The permutation test therefore confirms our findings from performing a simple manova between the three groups: There appears to be evidence that there are differences in the mean frequency deviations of the three groups. The permutation test allows us to relax the multivariate normality assumption that this dataset doesn't quite meet. However the dataset still doesn't meet the equality of covariances assumptions. 
+
+In conclusion, we only have weak evidence that the means of the three groups are different and cannot rule out that these differences between the groups lie only in their covariances rather than their means.
+
